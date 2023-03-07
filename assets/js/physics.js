@@ -52,11 +52,29 @@ class Point {
     }
 }
 class Weld {
-    constructor (p1,p2,r,c) {
+    constructor (p1,p2,r,c,s,li) {
         this.point1 = p1;
         this.point2 = p2;
         this.radius = r;
         this.colour = c;
+        
+        this.length = returnDistance(new Vector2(this.point1.pos.x-this.point2.pos.x,this.point1.pos.y-this.point2.pos.y));
+        this.strength = s;
+        this.limit = li;
+
+        this.solveWeld = () => {
+            const offSet = new Vector2(this.point1.pos.x-this.point2.pos.x,this.point1.pos.y-this.point2.pos.y);
+            const dis = returnDistance(offSet);
+            const dif = this.length - dis;
+            const percent = dif / dis / 2;
+            offSet.multiply(new Vector2(percent, percent));
+            if (dif) {
+                this.point1.pos.add(offSet);
+                this.point1.velocity.add(offSet);
+                this.point2.pos.substract(offSet);
+                this.point2.velocity.substract(offSet);
+            }
+        };
     }
 }
 class Vector2 {
@@ -126,17 +144,25 @@ class Colour {
     }
 }
 class Enviroment {
-    constructor (s,g) {
+    constructor (s,g,i) {
         this.size = s;
         this.gravity = g;
         this.points = [];
         this.welds = [];
-
+        this.iterations = i;
         this.addPoint = (p) => {
             this.points.push(p);
         };
         this.addWeld = (w) => {
             this.welds.push(w);
+        };
+        this.addShape = (s) => {
+            s.points.map((i) => {
+                this.points.push(i);
+            });
+            s.welds.map((i) => {
+                this.welds.push(i);
+            });
         };
 
         this.draw = (can) => {
@@ -164,14 +190,19 @@ class Enviroment {
             return can;
         };
         this.solvePhysics = () => {
+            this.welds.map((i)=>{
+                i.solveWeld();
+            });
             this.points.map((i)=>{
                 const change = new Vector2(0,0);
                 change.add(i.velocity);
                 change.add(this.gravity);
                 i.velocity = change;
-                i.pos.add(i.velocity);
-                i.solveCollisions(this.points);
                 i.constrain(size);
+                i.pos.add(i.velocity);
+                for (let j = 0; j < this.iterations; j++) {
+                    i.solveCollisions(this.points);
+                }
             });
         };
     }
@@ -183,4 +214,18 @@ function getRandomPosition (size) {
 }
 function returnDistance (shape) {
     return Math.sqrt(Math.pow(shape.x,2)+Math.pow(shape.y,2));
+}
+function getSimpleShape (sides,width,pos,c,r,b,d) {
+    let ret = {points: [], welds: []};
+    const a = 2 * Math.PI / sides;
+    for (let i = 0; i < sides; i++) {
+        ret.points.push(new Point(new Vector2(width * Math.cos(a * i), width * Math.sin(a * i)),r,c,b,d,new Vector2(0,0)));
+        ret.points[i].pos.add(pos);
+    }
+    for (let i = 0; i < sides; i++) {
+        for (let j = i+1; j < sides; j++) {
+            ret.welds.push(new Weld(ret.points[i],ret.points[j],r,c,0))
+        }
+    }
+    return ret;
 }
